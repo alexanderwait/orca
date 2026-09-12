@@ -13,6 +13,12 @@ const packageJson = JSON.parse(readProject('package.json'))
 const pnpmWorkspace = parse(readProject('pnpm-workspace.yaml'))
 
 describe('Electron runtime package contract', () => {
+  const packageTargets = {
+    win32: process.platform === 'win32' ? createPackagedRuntimeNodeModuleResources('win32') : [],
+    darwin: createPackagedRuntimeNodeModuleResources('darwin'),
+    linux: createPackagedRuntimeNodeModuleResources('linux')
+  }
+
   it('keeps root postinstall as the single Electron binary install owner', () => {
     expect(packageJson.scripts.postinstall).toBe('node config/scripts/rebuild-native-deps.mjs')
     expect(pnpmWorkspace.allowBuilds).not.toHaveProperty('electron')
@@ -28,8 +34,7 @@ describe('Electron runtime package contract', () => {
       'utf8'
     )
     expect(packageJson.optionalDependencies['windows-native-registry']).toBe('3.2.2')
-    // Why: pnpm installs optional target architectures on every host; the root
-    // Windows-only rebuild owns this addon so macOS/Linux never run node-gyp for it.
+    // Cross-target release installs include this addon; only Windows may rebuild it.
     expect(pnpmWorkspace.allowBuilds['windows-native-registry']).toBe(false)
     // Why assert the guard and the member separately: the list now carries more
     // than one addon, so pinning the whole literal only tested its formatting.
@@ -37,17 +42,14 @@ describe('Electron runtime package contract', () => {
     expect(rebuildScript).toContain("'windows-native-registry'")
     expect(ensureScript).toContain("process.platform === 'win32'")
     expect(ensureScript).toContain("'windows-native-registry'")
-    const packageTargets = {
-      win32: createPackagedRuntimeNodeModuleResources('win32'),
-      darwin: createPackagedRuntimeNodeModuleResources('darwin'),
-      linux: createPackagedRuntimeNodeModuleResources('linux')
+    if (process.platform === 'win32') {
+      expect(packageTargets.win32).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ to: join('node_modules', 'windows-native-registry') }),
+          expect.objectContaining({ to: join('node_modules', 'node-addon-api') })
+        ])
+      )
     }
-    expect(packageTargets.win32).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ to: join('node_modules', 'windows-native-registry') }),
-        expect.objectContaining({ to: join('node_modules', 'node-addon-api') })
-      ])
-    )
     for (const platform of ['darwin', 'linux']) {
       expect(packageTargets[platform]).not.toEqual(
         expect.arrayContaining([
@@ -67,28 +69,20 @@ describe('Electron runtime package contract', () => {
       'utf8'
     )
     expect(packageJson.optionalDependencies['@vscode/windows-process-tree']).toBe('0.8.0')
-    // Why: same rule as the registry addon -- pnpm installs optional deps on
-    // every host, so macOS/Linux must never run node-gyp for a Windows addon.
+    // Cross-target release installs must not run node-gyp for a Windows addon on other hosts.
     expect(pnpmWorkspace.allowBuilds['@vscode/windows-process-tree']).toBe(false)
     expect(rebuildScript).toContain("'@vscode/windows-process-tree'")
     expect(ensureScript).toContain("'@vscode/windows-process-tree'")
-    // Why pin the patch: the upstream binding.gyp requires Spectre-mitigated
-    // libraries our build agents do not carry, and the enumeration stops after
-    // 1024 processes -- on a busy host that silently hides the very descendants
-    // teardown is looking for.
     expect(pnpmWorkspace.patchedDependencies['@vscode/windows-process-tree@0.8.0']).toBe(
       'config/patches/@vscode__windows-process-tree@0.8.0.patch'
     )
-    const packageTargets = {
-      win32: createPackagedRuntimeNodeModuleResources('win32'),
-      darwin: createPackagedRuntimeNodeModuleResources('darwin'),
-      linux: createPackagedRuntimeNodeModuleResources('linux')
+    if (process.platform === 'win32') {
+      expect(packageTargets.win32).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ to: join('node_modules', '@vscode', 'windows-process-tree') })
+        ])
+      )
     }
-    expect(packageTargets.win32).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ to: join('node_modules', '@vscode', 'windows-process-tree') })
-      ])
-    )
     for (const platform of ['darwin', 'linux']) {
       expect(packageTargets[platform]).not.toEqual(
         expect.arrayContaining([

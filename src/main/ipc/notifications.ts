@@ -18,6 +18,30 @@ import { activeNotificationsById } from './native-notification-lifecycle'
 import { deliverNativeNotification } from './native-notification-delivery'
 import { reserveNotificationCooldown } from './notification-burst-cooldown'
 import { registerNotificationSoundHandlers } from './notification-sound-ipc'
+
+// Why: the mic-status helper can take up to its own 4s timeout to resolve
+// (or hang) — bound how long we'll block banner delivery on it and fall
+// back to "not active" rather than delaying the notification.
+const MIC_STATUS_GATING_DEADLINE_MS = 500
+
+function readMicActiveStatusBeforeDeadline(): Promise<boolean | null> {
+  return new Promise((resolve) => {
+    let settled = false
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        resolve(null)
+      }
+    }, MIC_STATUS_GATING_DEADLINE_MS)
+    readMicActiveStatus().then((micActive) => {
+      if (!settled) {
+        settled = true
+        clearTimeout(timer)
+        resolve(micActive)
+      }
+    })
+  })
+}
 import { openNotificationSystemSettings } from './notification-system-settings-link'
 import {
   getLastObservedDeliveryOutcome,
@@ -174,7 +198,7 @@ export function registerNotificationHandlers(store: Store, runtime?: OrcaRuntime
       // treat as "not active" rather than suppressing incorrectly.
       let suppressSound = false
       if (settings.suppressWhileMicActive && process.platform === 'darwin') {
-        const micActive = await readMicActiveStatus()
+        const micActive = await readMicActiveStatusBeforeDeadline()
         suppressSound = micActive === true
       }
 

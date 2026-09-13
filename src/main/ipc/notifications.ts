@@ -168,13 +168,14 @@ export function registerNotificationHandlers(store: Store, runtime?: OrcaRuntime
         return { delivered: false, reason: 'suppressed-focus' }
       }
 
-      // Why: unreadable/unsupported mic state resolves to null, which we treat as "not active"
-      // rather than suppressing incorrectly.
+      // Why suppress the sound rather than skip delivery: the setting promises to skip the
+      // notification *sound*, not hide the notification itself — the banner and click action
+      // still deliver normally. Unreadable/unsupported mic state resolves to null, which we
+      // treat as "not active" rather than suppressing incorrectly.
+      let suppressSound = false
       if (settings.suppressWhileMicActive && process.platform === 'darwin') {
         const micActive = await readMicActiveStatus()
-        if (micActive === true) {
-          return { delivered: false, reason: 'suppressed-mic-active' }
-        }
+        suppressSound = micActive === true
       }
 
       // Why: the Settings test button is an explicit, often-repeated user action, so it bypasses burst dedupe.
@@ -191,7 +192,7 @@ export function registerNotificationHandlers(store: Store, runtime?: OrcaRuntime
       }
 
       if (process.platform !== 'darwin') {
-        return deliverNativeNotification(args, notificationOptions, settings)
+        return deliverNativeNotification(args, notificationOptions, settings, { suppressSound })
       }
       // Why: macOS silently swallows notifications while permission is denied/undecided (verified macOS 26); skip so the renderer can show a fallback.
       return readNotificationAuthorizationStatus().then((authorization) => {
@@ -199,7 +200,7 @@ export function registerNotificationHandlers(store: Store, runtime?: OrcaRuntime
           recordNotificationDeliveryOutcome('failed')
           return { delivered: false, reason: 'blocked-by-system' }
         }
-        return deliverNativeNotification(args, notificationOptions, settings)
+        return deliverNativeNotification(args, notificationOptions, settings, { suppressSound })
       })
     }
   )

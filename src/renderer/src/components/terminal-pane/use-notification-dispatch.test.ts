@@ -878,4 +878,25 @@ describe('dispatchTerminalNotification', () => {
     expect(mockState.markTerminalTabUnread).not.toHaveBeenCalled()
     expect(mockState.markTerminalPaneUnread).not.toHaveBeenCalled()
   })
+
+  it('only plays the sound when the dispatch result is not soundSuppressed', async () => {
+    const dispatch = () =>
+      dispatchTerminalNotification('wt-primary', {
+        source: 'agent-task-complete',
+        terminalTitle: 'codex',
+        paneKey
+      })
+
+    dispatch()
+    await Promise.resolve()
+    expect(playDesktopNotificationSound).toHaveBeenCalled()
+
+    playDesktopNotificationSound.mockClear()
+    window.api.notifications.dispatch = vi
+      .fn()
+      .mockResolvedValue({ delivered: true, soundSuppressed: true })
+    dispatch()
+    await Promise.resolve()
+    expect(playDesktopNotificationSound).not.toHaveBeenCalled()
+  })
 })

@@ -224,7 +224,9 @@ export function dispatchTerminalNotification(
     })
     .then((result) => {
       if (result.delivered) {
-        void playDesktopNotificationSound(customSoundId, customSoundVolume)
+        if (!result.soundSuppressed) {
+          void playDesktopNotificationSound(customSoundId, customSoundVolume)
+        }
         return
       }
       // Why: macOS is silently swallowing notifications (permission off or

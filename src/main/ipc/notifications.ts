@@ -18,6 +18,14 @@ import { activeNotificationsById } from './native-notification-lifecycle'
 import { deliverNativeNotification } from './native-notification-delivery'
 import { reserveNotificationCooldown } from './notification-burst-cooldown'
 import { registerNotificationSoundHandlers } from './notification-sound-ipc'
+import { openNotificationSystemSettings } from './notification-system-settings-link'
+import {
+  getLastObservedDeliveryOutcome,
+  hasTriggeredPermissionDialogThisSession,
+  probeNotificationDelivery,
+  recordNotificationDeliveryOutcome,
+  resetNotificationPermissionEvidence
+} from './notification-permission-probe'
 
 // Why: the mic-status helper can take up to its own 4s timeout to resolve
 // (or hang) — bound how long we'll block banner delivery on it and fall
@@ -42,14 +50,6 @@ function readMicActiveStatusBeforeDeadline(): Promise<boolean | null> {
     })
   })
 }
-import { openNotificationSystemSettings } from './notification-system-settings-link'
-import {
-  getLastObservedDeliveryOutcome,
-  hasTriggeredPermissionDialogThisSession,
-  probeNotificationDelivery,
-  recordNotificationDeliveryOutcome,
-  resetNotificationPermissionEvidence
-} from './notification-permission-probe'
 
 export function registerNotificationHandlers(store: Store, runtime?: OrcaRuntimeService): void {
   ipcMain.removeHandler('notifications:getDesktopAwayState')

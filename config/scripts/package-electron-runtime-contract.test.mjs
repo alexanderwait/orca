@@ -34,7 +34,9 @@ describe('Electron runtime package contract', () => {
       'utf8'
     )
     expect(packageJson.optionalDependencies['windows-native-registry']).toBe('3.2.2')
-    // Cross-target release installs include this addon; only Windows may rebuild it.
+    // Why: pnpm must not run node-gyp for this addon at install time; the root
+    // Windows-only rebuild owns building it, applying the pinned patch and
+    // targeting the right runtime ABI.
     expect(pnpmWorkspace.allowBuilds['windows-native-registry']).toBe(false)
     // Why assert the guard and the member separately: the list now carries more
     // than one addon, so pinning the whole literal only tested its formatting.
@@ -69,10 +71,15 @@ describe('Electron runtime package contract', () => {
       'utf8'
     )
     expect(packageJson.optionalDependencies['@vscode/windows-process-tree']).toBe('0.8.0')
-    // Cross-target release installs must not run node-gyp for a Windows addon on other hosts.
+    // Why: same rule as the registry addon -- pnpm must not run node-gyp for it at
+    // install time; only the root Windows-only rebuild builds it (patched, right ABI).
     expect(pnpmWorkspace.allowBuilds['@vscode/windows-process-tree']).toBe(false)
     expect(rebuildScript).toContain("'@vscode/windows-process-tree'")
     expect(ensureScript).toContain("'@vscode/windows-process-tree'")
+    // Why pin the patch: the upstream binding.gyp requires Spectre-mitigated
+    // libraries our build agents do not carry, and the enumeration stops after
+    // 1024 processes -- on a busy host that silently hides the very descendants
+    // teardown is looking for.
     expect(pnpmWorkspace.patchedDependencies['@vscode/windows-process-tree@0.8.0']).toBe(
       'config/patches/@vscode__windows-process-tree@0.8.0.patch'
     )
